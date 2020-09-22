@@ -365,6 +365,8 @@ def main(argv):
     print("Generated Code:")
     print(code)
 
+    with open('output.asm', 'w') as f:
+        f.write(code)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
