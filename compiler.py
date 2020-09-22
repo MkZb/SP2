@@ -182,13 +182,28 @@ def parser(tokens: list):
 
         if token[1] == 'octal_constant':
             value = int(token[0][0].decode(coding), 8)
+            if not -2147483648 < value < 2147483647:
+                print("Value out of int32_t range\nLine: {}, Character: {}".format(token[0][1]['line'],
+                                                                                   token[0][1]['symbol']))
+                exit()
+            type = 'int'
         elif token[1] == 'float_constant':
-            value = float(token[0][0].decode(coding))
+            value = int(float(token[0][0].decode(coding)))
+            if not -2147483648 < value < 2147483647:
+                print("Value out of int32_t range\nLine: {}, Character: {}".format(token[0][1]['line'],
+                                                                                   token[0][1]['symbol']))
+                exit()
+            type = 'float'
         else:
             value = int(token[0][0].decode(coding))
+            if not -2147483648 < value < 2147483647:
+                print("Value out of int32_t range\nLine: {}, Character: {}".format(token[0][1]['line'],
+                                                                                   token[0][1]['symbol']))
+                exit()
+            type = 'int'
 
         exp = {'kind': 'Expression',
-               'type': token[1],
+               'type': type,
                'value': value}
 
         token = tokenIterator.next_item()
@@ -308,6 +323,22 @@ def parser(tokens: list):
     return AST
 
 
+# CODE GENERATION
+
+def codegen(AST):
+    code = ''
+    for k1 in AST:
+        if k1.startswith('function'):
+            for k2 in AST[k1]:
+                if k2.startswith('statement'):
+                    if AST[k1][k2]['name'] == "return":
+                        if AST[k1][k2]['exp']['type'] == 'int':
+                            code = 'mov eax, {}\nret'.format(AST[k1][k2]['exp']['value'])
+                        elif AST[k1][k2]['exp']['type'] == 'float':
+                            code = 'mov eax, {}\nret'.format(AST[k1][k2]['exp']['value'])
+    return code
+
+
 # Main program
 def main(argv):
     file_name = check_args(argv)
@@ -327,6 +358,12 @@ def main(argv):
     print("AST:")
     AST_readable = json.dumps(AST, indent=4)
     print(AST_readable)
+
+    code = codegen(AST)
+    print()
+    print()
+    print("Generated Code:")
+    print(code)
 
 
 if __name__ == "__main__":
