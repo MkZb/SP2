@@ -10,7 +10,7 @@ def check_args(argv):
     try:
         opts, args = getopt.getopt(argv, "i:o", ["input="])
     except getopt.GetoptError:
-        print('1-14-Python-ІВ-81-Зубець-compiler.py -i <input_file>')
+        print('2-14-Python-ІВ-81-Зубець-compiler.py -i <input_file>')
         input()
         exit(1)
 
@@ -18,7 +18,7 @@ def check_args(argv):
         if opt in ('-i', '--input'):
             return arg
 
-    return '1-14-Python-ІВ-81-Зубець-program.py'
+    return '2-14-Python-ІВ-81-Зубець-program.py'
 
 
 # LEXER
@@ -600,7 +600,7 @@ def main(argv):
     print("Generated Code:")
     print(code)
 
-    with open('1-14-Python-ІВ-81-Зубець-output.asm', 'w') as f:
+    with open('2-14-Python-ІВ-81-Зубець-output.asm', 'w') as f:
         f.write(code)
 
     print("\nEnter anything to exit")
