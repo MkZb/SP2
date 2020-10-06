@@ -1,3 +1,3 @@
 def main():
-    return 3
+    return 333 + ~(3 + 2) + ~3 + ((((((1231))))))
 main()

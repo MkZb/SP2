@@ -269,16 +269,20 @@ def parser(tokens: list):
         if next_item != 'addition':
             exp['factor'] = factor
 
+        counter = 1
         while next_item == 'addition':
+            print(next_item)
             exp['type'] = 'Binary'
             exp['operator'] = '+'
-            exp['left'] = factor
+            exp['addition'+str(counter)] = factor
+            counter += 1
             factor, id = parse_factor(tokens, tokenIterator.get_current_id())
-            exp['right'] = factor
+            exp['addition'+str(counter)] = factor
             tokenIterator.set_id(id)
             token = tokenIterator.next_item()
             token = skip_white_spaces(token, tokenIterator)
             next_item = token[1]
+            exp['add_count'] = counter
 
         return exp, tokenIterator.get_current_id()
 
@@ -318,50 +322,6 @@ def parser(tokens: list):
         statement['name'] = 'return'
         statement['exp'] = exp
 
-        """
-        token = tokenIterator.next_item()
-        token = skip_white_spaces_new_line(token, tokenIterator)
-
-        if not token:
-            pass
-        elif token[1] == 'identifier':
-            next_token = tokenIterator.next_item()
-            next_token = skip_white_spaces(next_token, tokenIterator)
-
-            if not next_token:
-                print("\nUnexpected token\nLine: {}, Character: {}".format(token[0][1]['line'],
-                                                                           token[0][1]['symbol']))
-                input()
-                exit(1)
-
-            if next_token[1] != 'open_parentheses':
-                print("\nUnexpected token\nLine: {}, Character: {}".format(token[0][1]['line'],
-                                                                           token[0][1]['symbol']))
-                input()
-                exit(1)
-
-            next_token = tokenIterator.next_item()
-            next_token = skip_white_spaces(next_token, tokenIterator)
-
-            if not next_token:
-                print("\nUnexpected token\nLine: {}, Character: {}".format(token[0][1]['line'],
-                                                                           token[0][1]['symbol']))
-                input()
-                exit(1)
-
-            if next_token[1] != 'closed_parentheses':
-                print("\nUnexpected token\nLine: {}, Character: {}".format(token[0][1]['line'],
-                                                                           token[0][1]['symbol']))
-                input()
-                exit(1)
-        elif token[1] == 'function_declaration':
-            pass
-        else:
-            print("\nUnexpected token\nLine: {}, Character: {}".format(token[0][1]['line'],
-                                                                       token[0][1]['symbol']))
-            input()
-            exit(1)
-        """
         return statement, id
 
     def parse_function(tokens, index=0):
@@ -547,9 +507,10 @@ def codegen(AST):
             if exp['type'] == 'Non Binary':
                 code_from_ast(exp['factor'])
             if exp['type'] == 'Binary':
-                code_from_ast(exp['left'])
-                code_from_ast(exp['right'])
-                code = code + '   pop eax\n   pop ebx\n   add eax, ebx\n   push eax\n'
+                for i in range(1, exp['add_count']+1):
+                    code_from_ast(exp['addition'+str(i)])
+                for i in range(1, exp['add_count']):
+                    code = code + '   pop eax\n   pop ebx\n   add eax, ebx\n   push eax\n'
         if exp['kind'] == 'Exp in brackets':
             code_from_ast(exp['exp'])
 
