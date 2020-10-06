@@ -1,4 +1,3 @@
 def main():
-    return 2
-
+    return ~(~3+(2+~1))
 main()

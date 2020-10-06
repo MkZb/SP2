@@ -34,7 +34,7 @@ def lexer(file_name):
 # Function that splits input string into lexems
 def string_scanner(string: bytes, pos=0):
     def next_item(start_pos):
-        delimiters = [' ', '\n', ':', ';', '(', ')', '-', '+']
+        delimiters = [' ', '\n', ':', ';', '(', ')', '-', '+', '~']
         current_pos = start_pos
         line_counter = 1
         while current_pos < str_len:
@@ -73,7 +73,9 @@ def tokenizer(items: list):
         b';': 'semicolon',
         b':': 'colon',
         b' ': 'white_space',
-        b'\n': 'new_line'
+        b'\n': 'new_line',
+        b'~': 'bitwise_complement',
+        b'+': 'addition'
     }
     for i in items:
         if i[0] in templates.keys():
@@ -146,6 +148,9 @@ def parser(tokens: list):
             else:
                 return False
 
+        def set_id(self, id):
+            self.current_item = id
+
         def get_current_id(self):
             return self.current_item
 
@@ -178,36 +183,105 @@ def parser(tokens: list):
         return token
 
     # Recursive parser
-    def parse_statement(tokens, index=0):
-        statement = {}
+    def parse_factor(tokens, index=0):
+        factor = {}
+        factor['kind'] = 'Factor'
 
-        tokenIterator = TokensIter(tokens, index-1)
+        tokenIterator = TokensIter(tokens, index)
+
         token = tokenIterator.next_item()
-
-        print(token)
-        if not token:
-            print("Unexpected EOF")
-            input()
-            exit(1)
-
-        if token[1] != 'white_space':
-            print("\nError function body must be in white spaces\nLine: {}, Character: {}".format(token[0][1]['line'],
-                                                                                                  token[0][1][
-                                                                                                      'symbol']))
-            input()
-            exit(1)
-
         token = skip_white_spaces(token, tokenIterator)
-        if not token:
-            print("\nUnexpected EOF")
-            input()
-            exit(1)
+        id = tokenIterator.get_current_id()
 
-        if token[1] != 'return_keyword':
-            print("\nStatement must start from return\nLine: {}, Character: {}".format(token[0][1]['line'],
-                                                                                       token[0][1]['symbol']))
-            input()
-            exit(1)
+        if token[1] == 'open_parentheses':
+            factor['kind'] = 'Exp in brackets'
+            exp, id = parse_exp(tokens, tokenIterator.get_current_id())
+            factor['exp'] = exp
+            tokenIterator.set_id(id - 1)
+            token = tokenIterator.next_item()
+            token = skip_white_spaces(token, tokenIterator)
+            if token[1] != 'closed_parentheses':
+                print("CL p")
+                exit()
+
+            return factor, tokenIterator.get_current_id()
+        elif token[1] == 'bitwise_complement':
+            factor['kind'] = 'Expression'
+            factor['type'] = 'Unary'
+            factor['operator'] = token[0][0].decode(coding)
+            new_factor, id = parse_factor(tokens, tokenIterator.get_current_id())
+            factor['factor'] = new_factor
+            return factor, id
+
+        else:
+            factor['kind'] = 'Constant'
+            if not token:
+                print("\nUnexpected EOF")
+                input()
+                exit(1)
+
+            if token[1] not in ['float_constant', 'octal_constant', 'decimal_constant']:
+                print("\nWrong return type\nLine: {}, Character: {}".format(token[0][1]['line'], token[0][1]['symbol']))
+                input()
+                exit(1)
+
+            if token[1] == 'octal_constant':
+                value = int(token[0][0].decode(coding), 8)
+                if not -2147483648 < value < 2147483647:
+                    print("\nValue out of int32_t range\nLine: {}, Character: {}".format(token[0][1]['line'],
+                                                                                         token[0][1]['symbol']))
+                    input()
+                    exit(1)
+                type = 'int'
+            elif token[1] == 'float_constant':
+                value = int(float(token[0][0].decode(coding)))
+                if not -2147483648 < value < 2147483647:
+                    print("\nValue out of int32_t range\nLine: {}, Character: {}".format(token[0][1]['line'],
+                                                                                         token[0][1]['symbol']))
+                    input()
+                    exit(1)
+                type = 'float'
+            else:
+                value = int(token[0][0].decode(coding))
+                if not -2147483648 < value < 2147483647:
+                    print("\nValue out of int32_t range\nLine: {}, Character: {}".format(token[0][1]['line'],
+                                                                                         token[0][1]['symbol']))
+                    input()
+                    exit(1)
+                type = 'int'
+            factor['type'] = type
+            factor['value'] = value
+            return factor, id
+
+    def parse_exp(tokens, index=0):
+        exp = {}
+        exp['kind'] = 'Expression'
+        exp['type'] = 'Non Binary'
+        tokenIterator = TokensIter(tokens, index)
+
+        factor, id = parse_factor(tokens, tokenIterator.get_current_id())
+        tokenIterator.set_id(id)
+
+        token = tokenIterator.next_item()
+        token = skip_white_spaces(token, tokenIterator)
+
+        next_item = token[1]
+        if next_item != 'addition':
+            exp['factor'] = factor
+
+        while next_item == 'addition':
+            exp['type'] = 'Binary'
+            exp['operator'] = '+'
+            exp['left'] = factor
+            factor, id = parse_factor(tokens, tokenIterator.get_current_id())
+            exp['right'] = factor
+            tokenIterator.set_id(id)
+            token = tokenIterator.next_item()
+            token = skip_white_spaces(token, tokenIterator)
+            next_item = token[1]
+
+        '''
+        tokenIterator = TokensIter(tokens, index)
 
         token = tokenIterator.next_item()
         token = skip_white_spaces(token, tokenIterator)
@@ -250,11 +324,46 @@ def parser(tokens: list):
         exp = {'kind': 'Expression',
                'type': type,
                'value': value}
+        '''
+        return exp, tokenIterator.get_current_id()
+
+    def parse_statement(tokens, index=0):
+        statement = {}
+
+        tokenIterator = TokensIter(tokens, index - 1)
+        token = tokenIterator.next_item()
+
+        if not token:
+            print("Unexpected EOF")
+            input()
+            exit(1)
+
+        if token[1] != 'white_space':
+            print("\nError function body must be in white spaces\nLine: {}, Character: {}".format(token[0][1]['line'],
+                                                                                                  token[0][1][
+                                                                                                      'symbol']))
+            input()
+            exit(1)
+
+        token = skip_white_spaces(token, tokenIterator)
+        if not token:
+            print("\nUnexpected EOF")
+            input()
+            exit(1)
+
+        if token[1] != 'return_keyword':
+            print("\nStatement must start from return\nLine: {}, Character: {}".format(token[0][1]['line'],
+                                                                                       token[0][1]['symbol']))
+            input()
+            exit(1)
+
+        exp, id = parse_exp(tokens, tokenIterator.get_current_id())
 
         statement['kind'] = 'Statement'
         statement['name'] = 'return'
         statement['exp'] = exp
 
+        """
         token = tokenIterator.next_item()
         token = skip_white_spaces_new_line(token, tokenIterator)
 
@@ -297,8 +406,8 @@ def parser(tokens: list):
                                                                        token[0][1]['symbol']))
             input()
             exit(1)
-
-        return statement
+        """
+        return statement, id
 
     def parse_function(tokens, index=0):
         func = {}
@@ -389,18 +498,18 @@ def parser(tokens: list):
             exit(1)
 
         token = skip_new_line(token, tokenIterator)
-        statement = parse_statement(tokens, tokenIterator.get_current_id())
+        statement, id = parse_statement(tokens, tokenIterator.get_current_id())
         func['kind'] = 'Function Declaration'
         func['name'] = name
         func['statement'] = statement
-        return func
+        return func, id
 
     def parse_func_call(tokens, index=0):
         func_call = {}
 
         tokenIterator = TokensIter(tokens, index)
         token = tokenIterator.next_item()
-
+        token = skip_white_spaces_new_line(token, tokenIterator)
         if token[1] != 'identifier':
             print("\nIdentifier expected \nLine: {}, Character: {}".format(token[0][1]['line'],
                                                                            token[0][1]['symbol']))
@@ -430,19 +539,37 @@ def parser(tokens: list):
         func_call['type'] = 'Function Call'
         func_call['name'] = name.decode(coding)
 
+        return func_call, tokenIterator.get_current_id()
+
+    def parse_program(tokens, index=0):
+        program = {}
+        func, id = parse_function(tokens)
+        program['kind'] = 'Program'
+        program['function'] = func
+
+        tokenIterator = TokensIter(tokens, id)
+        token = tokenIterator.next_item()
+        token = skip_white_spaces_new_line(token, tokenIterator)
+
+        if token[1] != 'identifier':
+            print("Not id")
+            exit(1)
+
+        func_call, id = parse_func_call(tokens, id)
+        program['function_call'] = func_call
+
+        tokenIterator.set_id(id)
         token = tokenIterator.next_item()
         token = skip_white_spaces_new_line(token, tokenIterator)
 
         if token != False:
             print("\nUnexpected token\nLine: {}, Character: {}".format(token[0][1]['line'],
-                                                                     token[0][1]['symbol']))
+                                                                       token[0][1]['symbol']))
             exit(1)
 
-        return func_call
+        return program
 
-    def parse_program(tokens, index=0):
-        program = {}
-        if tokens[0][1] == 'function_declaration':
+        '''if tokens[0][1] == 'function_declaration':
             functions_amount = 0
             for i in tokens:
                 if i[1] == 'function_declaration':
@@ -477,30 +604,51 @@ def parser(tokens: list):
             print("\nError program must start from function declaration\nLine: 1, Character: 1")
             input()
             exit(1)
+        '''
 
     AST = parse_program(tokens)
     return AST
 
 
 # CODE GENERATION
+global code
+code = ''
+
 
 def codegen(AST):
-    code = ''
+    global code
+
+    def code_from_ast(exp: dict):
+        global code
+        if exp['kind'] == 'Constant':
+            code = code + "   mov eax, {}\n   push eax\n".format(exp['value'])
+        if exp['kind'] == 'Expression':
+            if exp['type'] == 'Unary':
+                code_from_ast(exp['factor'])
+                code = code + '   pop eax\n   not eax\n   push eax\n'
+            if exp['type'] == 'Non Binary':
+                code_from_ast(exp['factor'])
+            if exp['type'] == 'Binary':
+                code_from_ast(exp['left'])
+                code_from_ast(exp['right'])
+                code = code + '   pop eax\n   pop ebx\n   add eax, ebx\n   push eax\n'
+        if exp['kind'] == 'Exp in brackets':
+            code_from_ast(exp['exp'])
+
     for func_call_search in AST:
         if func_call_search.startswith('function_call'):
             func = 0
             for k1 in AST:
-                if k1 == 'function' and AST[k1]['name'] == AST[k1]['name']:
+                if k1 == 'function' and AST[func_call_search]['name'] == AST[k1]['name']:
                     func += 1
                     for k2 in AST[k1]:
                         if k2.startswith('statement'):
                             if AST[k1][k2]['name'] == "return":
-                                if AST[k1][k2]['exp']['type'] == 'int':
-                                    code = '{}:\n   mov eax, {}\n   ret'.format(AST[k1]['name'],
-                                                                                AST[k1][k2]['exp']['value'])
-                                elif AST[k1][k2]['exp']['type'] == 'float':
-                                    code = '{}:\n   mov eax, {}\n   ret'.format(AST[k1]['name'],
-                                                                                AST[k1][k2]['exp']['value'])
+                                exp = AST[k1][k2]['exp']
+                                code = code + AST[k1]['name'] + ":\n"
+                                code_from_ast(exp)
+                                code = code + '   pop eax\n   ret'
+                                code = code.replace('\n   push eax\n   pop eax', '')
             if func != 1:
                 print('\n Function declaration not found')
                 input()
