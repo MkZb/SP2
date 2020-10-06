@@ -280,51 +280,6 @@ def parser(tokens: list):
             token = skip_white_spaces(token, tokenIterator)
             next_item = token[1]
 
-        '''
-        tokenIterator = TokensIter(tokens, index)
-
-        token = tokenIterator.next_item()
-        token = skip_white_spaces(token, tokenIterator)
-
-        if not token:
-            print("\nUnexpected EOF")
-            input()
-            exit(1)
-
-        if token[1] not in ['float_constant', 'octal_constant', 'decimal_constant']:
-            print("\nWrong return type\nLine: {}, Character: {}".format(token[0][1]['line'], token[0][1]['symbol']))
-            input()
-            exit(1)
-
-        if token[1] == 'octal_constant':
-            value = int(token[0][0].decode(coding), 8)
-            if not -2147483648 < value < 2147483647:
-                print("\nValue out of int32_t range\nLine: {}, Character: {}".format(token[0][1]['line'],
-                                                                                     token[0][1]['symbol']))
-                input()
-                exit(1)
-            type = 'int'
-        elif token[1] == 'float_constant':
-            value = int(float(token[0][0].decode(coding)))
-            if not -2147483648 < value < 2147483647:
-                print("\nValue out of int32_t range\nLine: {}, Character: {}".format(token[0][1]['line'],
-                                                                                     token[0][1]['symbol']))
-                input()
-                exit(1)
-            type = 'float'
-        else:
-            value = int(token[0][0].decode(coding))
-            if not -2147483648 < value < 2147483647:
-                print("\nValue out of int32_t range\nLine: {}, Character: {}".format(token[0][1]['line'],
-                                                                                     token[0][1]['symbol']))
-                input()
-                exit(1)
-            type = 'int'
-
-        exp = {'kind': 'Expression',
-               'type': type,
-               'value': value}
-        '''
         return exp, tokenIterator.get_current_id()
 
     def parse_statement(tokens, index=0):
@@ -568,43 +523,6 @@ def parser(tokens: list):
             exit(1)
 
         return program
-
-        '''if tokens[0][1] == 'function_declaration':
-            functions_amount = 0
-            for i in tokens:
-                if i[1] == 'function_declaration':
-                    functions_amount += 1
-            if functions_amount == 1:
-                function = parse_function(tokens)
-                program['kind'] = 'Program'
-                program['function'] = function
-                c = 0
-                for i in range(len(tokens)):
-                    if tokens[i][0][0].decode(coding) == function['name']:
-                        c += 1
-                    if c == 2:
-                        func_call = parse_func_call(tokens, index=i - 1)
-                        program['function_call'] = func_call
-                        break
-
-                if c == 1:
-                    print("\nWarning: function call not found. Code will not be generated.")
-                    return program
-                if c == 2:
-                    return program
-                else:
-                    print("\nMore than 1 identifier given.")
-                    input()
-                    exit(1)
-            else:
-                print("\nMore than 1 function given.")
-                input()
-                exit(1)
-        else:
-            print("\nError program must start from function declaration\nLine: 1, Character: 1")
-            input()
-            exit(1)
-        '''
 
     AST = parse_program(tokens)
     return AST
