@@ -18,7 +18,7 @@ def check_args(argv):
         if opt in ('-i', '--input'):
             return arg
 
-    return '2-14-Python-ІВ-81-Зубець-program.py'
+    return '2-14-Python-ІВ-81-Зубець-program.txt'
 
 
 # LEXER
@@ -201,7 +201,7 @@ def parser(tokens: list):
             token = tokenIterator.next_item()
             token = skip_white_spaces(token, tokenIterator)
             if token[1] != 'closed_parentheses':
-                print("CL p")
+                print("\nExpected closing parentheses\nLine: {}, Character: {}".format(token[0][1]['line'], token[0][1]['symbol']))
                 exit()
 
             return factor, tokenIterator.get_current_id()
@@ -538,8 +538,8 @@ def codegen(AST):
 # Main program
 def main(argv):
     file_name = check_args(argv)
-    if not file_name.endswith('.py'):
-        print("Wrong file format, expected .py")
+    if not file_name.endswith('.txt'):
+        print("Wrong file format, expected .txt")
         return
     tokens = lexer(file_name)
 
