@@ -1,0 +1,6 @@
+def main():
+    a = 3 + 2
+    sad = 1
+    return (~(1 + a) - 2) >> 2
+
+main()
