@@ -1,0 +1,15 @@
+def main():
+    if (130 + 0o1 >> 2):
+        a = 10
+        if a:
+            return a
+        else:
+            b = 5
+    elif (0o15 >> 5):
+        return 100
+    else:
+        a = 5
+        return a
+
+
+main()
