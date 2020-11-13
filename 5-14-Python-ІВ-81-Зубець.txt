@@ -1,0 +1,20 @@
+def main():
+    a = 100 + 0o6
+    a >>= 5
+    if a:
+        b = myFunc(1, 2, 3) + 23 + myFunc(100, 3, 9) >> 1
+        return b
+    else:
+        return a
+
+def myFunc(x, y):
+    return x >> y
+
+def myFunc(x, y, z):
+    a = 100
+    b = 200
+    a >>= 5
+    c = 3
+    return x + y + z + a
+
+main()

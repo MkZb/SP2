@@ -10,7 +10,7 @@ def check_args(argv):
     try:
         opts, args = getopt.getopt(argv, "i:o", ["input="])
     except getopt.GetoptError:
-        print('4-14-Python-ІВ-81-Зубець.py -i <input_file>')
+        print('5-14-Python-ІВ-81-Зубець.py -i <input_file>')
         input()
         exit(1)
 
@@ -18,7 +18,7 @@ def check_args(argv):
         if opt in ('-i', '--input'):
             return arg
 
-    return '4-14-Python-ІВ-81-Зубець.txt'
+    return '5-14-Python-ІВ-81-Зубець.txt'
 
 
 # LEXER
@@ -34,7 +34,7 @@ def lexer(file_name):
 # Function that splits input string into lexems
 def string_scanner(string: bytes, pos=0):
     def next_item(start_pos):
-        delimiters = [' ', '\n', ':', ';', '(', ')', '-', '+', '~', '=', '>>']
+        delimiters = [' ', '\n', ':', ';', '(', ')', '-', '+', '~', '=', ',']
         current_pos = start_pos
         line_counter = 1
         while current_pos < str_len:
@@ -81,7 +81,9 @@ def tokenizer(items: list):
         b'>>': 'r_shift',
         b'if': 'if',
         b'else': 'else',
-        b'elif': 'elif'
+        b'elif': 'elif',
+        b',': 'coma',
+        b'>>=': 'r_shift_equals'
     }
     for i in items:
         if i[0] in templates.keys():
@@ -127,6 +129,12 @@ def tokenizer(items: list):
                 print("Lexem \"{}\" is not recognizable.".format(i[0].decode(coding)))
                 input()
                 exit(1)
+    for i in range(len(tokens)):
+        if i < (len(tokens) - 1):
+            if tokens[i][1] == 'r_shift':
+                if tokens[i + 1][1] == 'equal':
+                    tokens[i] = ((b'>>=', tokens[i][0][1]), templates[b'>>='])
+                    tokens.pop(i + 1)
     return tokens
 
 
@@ -199,9 +207,49 @@ def parser(tokens: list):
 
         tokenIterator = TokensIter(tokens, index)
         token = tokenIterator.next_item()
-
         token = skip_white_spaces(token, tokenIterator)[0]
         id = tokenIterator.get_current_id()
+        name = token[0][0].decode(coding)
+        if token[1] == 'identifier':
+            save_id = id
+            token = tokenIterator.next_item()
+            token, id = skip_white_spaces(token, tokenIterator)
+            if token[1] != 'open_parentheses':
+                id = save_id - 1
+                tokenIterator.set_id(id)
+                token = tokenIterator.next_item()
+                token = skip_white_spaces(token, tokenIterator)[0]
+            else:
+                factor['kind'] = "Function call"
+                factor['name'] = name
+                token = tokenIterator.next_item()
+                token, id = skip_white_spaces(token, tokenIterator)
+                args = 0
+                next_item = token[1]
+                while next_item != 'closed_parentheses':
+                    args += 1
+                    factor['arg' + str(args)], id = parse_exp(tokens, tokenIterator.get_current_id() - 1)
+                    tokenIterator.set_id(id)
+                    token = tokenIterator.next_item()
+                    token, save_id = skip_white_spaces(token, tokenIterator)
+                    if token[1] == 'closed_parentheses':
+                        break
+                    elif token[1] == 'coma':
+                        token = tokenIterator.next_item()
+                        token, id = skip_white_spaces(token, tokenIterator)
+                    else:
+                        print("\nUnexpected token in function call arguments\nLine: {}, Character: {}".format(
+                            token[0][1]['line'],
+                            token[0][1]['symbol']))
+                        print()
+                        exit(1)
+
+                if token[1] != 'closed_parentheses':
+                    print("\nExpected closing parentheses\nLine: {}, Character: {}".format(token[0][1]['line'],
+                                                                                           token[0][1]['symbol']))
+                    input()
+                    exit(1)
+                return factor, tokenIterator.get_current_id()
 
         if token[1] == 'open_parentheses':
             factor['kind'] = 'Exp in brackets'
@@ -213,6 +261,7 @@ def parser(tokens: list):
             if token[1] != 'closed_parentheses':
                 print("\nExpected closing parentheses\nLine: {}, Character: {}".format(token[0][1]['line'],
                                                                                        token[0][1]['symbol']))
+                input()
                 exit(1)
 
             return factor, tokenIterator.get_current_id()
@@ -224,14 +273,18 @@ def parser(tokens: list):
             factor['factor'] = new_factor
             return factor, id
 
+        elif token[1] == 'r_shift_equals':
+            new_factor, id = parse_factor(tokens, tokenIterator.get_current_id())
+            factor['factor'] = new_factor
+            return factor, id
+
         elif token[1] == 'identifier':
             factor['kind'] = 'Variable'
             factor['name'] = token[0][0].decode(coding)
-            return factor, id
+            return factor, tokenIterator.get_current_id()
 
         else:
             factor['kind'] = 'Constant'
-
             if not token:
                 print("\nUnexpected EOF")
                 input()
@@ -268,21 +321,19 @@ def parser(tokens: list):
                 type = 'int'
             factor['type'] = type
             factor['value'] = value
-            return factor, id
+            return factor, tokenIterator.get_current_id()
 
     def parse_term(tokens, index=0):
         exp = {}
         tokenIterator = TokensIter(tokens, index)
         exp['kind'] = 'Expression'
         exp['type'] = 'Non Binary'
-
         factor, id = parse_factor(tokens, tokenIterator.get_current_id())
         tokenIterator.set_id(id)
 
         save_id = id
         token = tokenIterator.next_item()
         token = skip_white_spaces(token, tokenIterator)[0]
-
         next_item = token[1]
         if (next_item != 'addition') and (next_item != 'substraction'):
             exp['factor'] = factor
@@ -324,10 +375,8 @@ def parser(tokens: list):
 
         exp['kind'] = 'Expression'
         exp['type'] = 'Non Binary'
-
         term, id = parse_term(tokens, tokenIterator.get_current_id())
         tokenIterator.set_id(id)
-
         save_id = id
         token = tokenIterator.next_item()
         token = skip_white_spaces(token, tokenIterator)[0]
@@ -373,12 +422,12 @@ def parser(tokens: list):
 
         tokenIterator = TokensIter(tokens, index)
         token = tokenIterator.next_item()
-
         if not token:
             print("Unexpected EOF")
             input()
             exit(1)
         if token[1] != 'white_space':
+            print("KILL ME", token)
             print("\nError function body must be in white spaces\nLine: {}, Character: {}".format(token[0][1]['line'],
                                                                                                   token[0][1][
                                                                                                       'symbol']))
@@ -418,24 +467,29 @@ def parser(tokens: list):
 
             token = tokenIterator.next_item()
             token = skip_white_spaces(token, tokenIterator)[0]
-            if token[1] != 'equal':
+            if token[1] not in ['equal', 'r_shift_equals']:
                 print("\nExpected '='\nLine: {}, Character: {}".format(token[0][1]['line'],
                                                                        token[0][1]['symbol']))
                 input()
                 exit(1)
 
-            statement['value'], id = parse_exp(tokens, tokenIterator.get_current_id())
+            if token[1] == 'r_shift_equals':
+                statement['type'] = 'R_shift + Assignment'
+                statement['value'], id = parse_factor(tokens, tokenIterator.get_current_id() - 1)
+            else:
+                statement['value'], id = parse_exp(tokens, tokenIterator.get_current_id())
 
             tokenIterator.set_id(id)
             token = tokenIterator.next_item()
             if token[1] not in ['new_line']:
-                print("\nExpected '='\nLine: {}, Character: {}".format(token[0][1]['line'],
-                                                                       token[0][1]['symbol']))
+                print("\nExpected new line\nLine: {}, Character: {}".format(token[0][1]['line'],
+                                                                            token[0][1]['symbol']))
                 input()
                 exit(1)
 
             token = skip_new_line(token, tokenIterator)
             return statement, tokenIterator.get_current_id() - 1
+
         elif token[1] == 'if':
             spacing.append((spaces, 'if'))
             statement['kind'] = 'Statement'
@@ -471,7 +525,7 @@ def parser(tokens: list):
             last_item = spacing.pop()
             if current_spaces <= last_item[0]:
                 print("\nUnidentified nesting\nLine: {}, Character: {}".format(token[0][1]['line'],
-                                                                       token[0][1]['symbol']))
+                                                                               token[0][1]['symbol']))
                 input()
                 exit(1)
             else:
@@ -632,7 +686,7 @@ def parser(tokens: list):
 
                 token = skip_new_line(token, tokenIterator)
             else:
-                tokenIterator.set_id(save_id - 1)  # ?
+                tokenIterator.set_id(save_id - 1)
 
             while True:
                 last_item = spacing.pop()
@@ -696,7 +750,29 @@ def parser(tokens: list):
             exit(1)
 
         token = tokenIterator.next_item()
-        token = skip_white_spaces(token, tokenIterator)[0]
+        token, save_id = skip_white_spaces(token, tokenIterator)
+
+        next_item = token[1]
+        args = 0
+        while next_item != 'closed_parentheses':
+            args += 1
+            if next_item == 'identifier':
+                func['arg' + str(args)] = token[0][0].decode(coding)
+            token = tokenIterator.next_item()
+            token = skip_white_spaces(token, tokenIterator)[0]
+            next_item = token[1]
+            if next_item == 'coma':
+                token = tokenIterator.next_item()
+                token = skip_white_spaces(token, tokenIterator)[0]
+                next_item = token[1]
+            elif next_item == 'closed_parentheses':
+                break
+            else:
+                print(
+                    "\nError after open parentheses must be closed parentheses and arguments must be separeted by coma\nLine: {}, Character: {}".format(
+                        token[0][1]['line'], token[0][1]['symbol']))
+                input()
+                exit(1)
 
         if not token:
             print("\nUnexpected EOF")
@@ -704,8 +780,9 @@ def parser(tokens: list):
             exit(1)
 
         if token[1] != 'closed_parentheses':
-            print("\nError after open parentheses must be closed parentheses\nLine: {}, Character: {}".format(
-                token[0][1]['line'], token[0][1]['symbol']))
+            print(
+                "\nError after open parentheses must be closed parentheses and arguments must be separeted by coma\nLine: {}, Character: {}".format(
+                    token[0][1]['line'], token[0][1]['symbol']))
             input()
             exit(1)
 
@@ -752,22 +829,25 @@ def parser(tokens: list):
         token = skip_white_spaces_new_line(token, tokenIterator)
         next_item = token[1]
         while next_item in ['identifier', 'return_keyword', 'if']:
+            if next_item == 'identifier':
+                token = tokenIterator.next_item()
+                token = skip_white_spaces(token, tokenIterator)[0]
+                if token[1] == 'open_parentheses':
+                    return func, save_id - 1
+                else:
+                    tokenIterator.set_id(save_id)
+
             statement_counter += 1
             token = tokenIterator.next_item()
-            print(token)
             token = skip_white_spaces(token, tokenIterator)[0]
-            if token[1] == 'open_parentheses':
-                break
-            tokenIterator.set_id(save_id)
+            tokenIterator.set_id(save_id - 1)
             token = tokenIterator.next_item()
-
             statement, id = parse_statement(tokens, tokenIterator.get_current_id())
             func['statement' + str(statement_counter)] = statement
             tokenIterator.set_id(id)
             token = skip_new_line(token, tokenIterator)
             save_id = tokenIterator.get_current_id()
             token = skip_white_spaces_new_line(token, tokenIterator)
-            print(token, "?????")
             next_item = token[1]
 
         return func, id
@@ -813,11 +893,19 @@ def parser(tokens: list):
         program = {}
         func, id = parse_function(tokens, -1)
         program['kind'] = 'Program'
-        program['function'] = func
-
+        func_num = 1
+        program['function' + str(func_num)] = func
         tokenIterator = TokensIter(tokens, id)
         token = tokenIterator.next_item()
         token = skip_white_spaces_new_line(token, tokenIterator)
+        next_item = token[1]
+        while next_item == 'function_declaration':
+            func_num += 1
+            program['function' + str(func_num)], id = parse_function(tokens, tokenIterator.get_current_id() - 1)
+            tokenIterator.set_id(id)
+            token = tokenIterator.next_item()
+            token = skip_white_spaces_new_line(token, tokenIterator)
+            next_item = token[1]
 
         if token[1] != 'identifier':
             print("Expected function call\n \nLine: {}, Character: {}".format(
@@ -826,7 +914,7 @@ def parser(tokens: list):
             exit(1)
 
         func_call, id = parse_func_call(tokens, id)
-        program['function_call'] = func_call
+        program['call_function'] = func_call
 
         tokenIterator.set_id(id)
         token = tokenIterator.next_item()
@@ -845,9 +933,37 @@ def parser(tokens: list):
 
 # CODE GENERATION
 global code
-code = ''
+code = r'''.586
+.model flat, stdcall
+option casemap:none
+
+include     \masm32\include\windows.inc
+include     \masm32\include\kernel32.inc
+include     \masm32\include\masm32.inc
+include     \masm32\include\user32.inc
+
+includelib  \masm32\lib\kernel32.lib
+includelib  \masm32\lib\masm32.lib
+includelib  \masm32\lib\user32.lib
+
+NumbToStr   PROTO :DWORD,:DWORD
+{function_decl}
+
+.data
+buff        db 11 dup(?)
+
+.code
+start:
+    invoke  {main_func}
+    invoke  NumbToStr, eax, ADDR buff
+    invoke  StdOut, eax
+    invoke  ExitProcess, 0
+
+'''
+
 var_map = {}
-counter = 0
+counter = -0
+local_counter = 0
 cond = 0
 cond2 = 0
 labels_list = []
@@ -855,7 +971,8 @@ labels_2 = []
 
 
 def codegen(AST):
-    global code, var_map, counter, cond
+    global code, var_map, counter, cond, local_counter
+    functions = []
 
     def code_from_ast(exp: dict):
         global code, var_map, counter, cond, cond2, labels_list
@@ -868,7 +985,7 @@ def codegen(AST):
                 print('Variable "{}" is not defined!'.format(exp['name']))
                 input()
                 exit(1)
-            code = code + '    mov eax, [ebp + {}]\n    push eax\n'.format(var_map[exp['name']])
+            code = code + '    mov eax, [ebp {:+d}]\n    push eax\n'.format(var_map[exp['name']])
 
         if exp['kind'] == 'Statement':
             if exp['type'] == "Return":
@@ -877,12 +994,24 @@ def codegen(AST):
             elif exp['type'] == "Assignment":
                 if exp['var'] not in var_map.keys():
                     code_from_ast(exp['value'])
-                    counter += 4
-                    code = code + '    pop eax\n    mov [ebp + {}], eax\n'.format(counter)
+                    if counter > 0:
+                        counter += 4
+                    else:
+                        counter -= 4
+                    code = code + '    pop eax\n    sub esp, 4\n    mov [ebp {:+d}], eax\n'.format(counter)
                     var_map[exp['var']] = counter
                 else:
                     code_from_ast(exp['value'])
-                    code = code + '    pop eax\n    mov [ebp + {}], eax\n'.format(var_map[exp['var']])
+                    code = code + '    pop eax\n    mov [ebp {:+d}], eax\n'.format(var_map[exp['var']])
+            elif exp['type'] == 'R_shift + Assignment':
+                if exp['var'] not in var_map.keys():
+                    print("Error variable {} is not defined before editing\n".format(exp['var']))
+                    input()
+                    exit(1)
+                else:
+                    code_from_ast(exp['value']['factor'])
+                    code = code + '    pop ebx\n    mov eax, [ebp {:+d}]\n    mov cl, bl\n    sar eax, cl\n    mov [ebp {:+d}], eax\n'.format(
+                        var_map[exp['var']], var_map[exp['var']])
             elif exp['type'] == 'Conditional':
                 cond += 1
                 cond2 += 1
@@ -921,6 +1050,29 @@ def codegen(AST):
                                 code_from_ast(exp[key][else_statement])
 
                 code = code + '{}:\n'.format(labels_2.pop())
+        if exp['kind'] == 'Function call':
+            arg_count = 0
+            expected_args = 0
+            for k in exp:
+                if k.startswith('arg'):
+                    arg_count += 1
+
+            for k in AST:
+                if k.startswith('function'):
+                    if AST[k]['name'] == exp['name']:
+                        last = AST[k]
+            for arg in last:
+                if arg.startswith('arg'):
+                    expected_args += 1
+
+            if expected_args != arg_count:
+                print("Unexpected args amount at function {}() call\n".format(exp['name']))
+                input()
+                exit(1)
+
+            for i in range(arg_count, 0, -1):
+                code_from_ast(exp['arg' + str(i)])
+            code = code + '    call {}\n    push eax\n'.format(exp['name'], arg_count * 4)
 
         if exp['kind'] == 'Expression':
             if exp['type'] == 'Unary':
@@ -949,24 +1101,72 @@ def codegen(AST):
             code_from_ast(exp['exp'])
 
     for func_call_search in AST:
-        if func_call_search.startswith('function_call'):
+        if func_call_search.startswith('call'):
             func = 0
             cond = 0
             for k1 in AST:
-                if k1 == 'function' and AST[func_call_search]['name'] == AST[k1]['name']:
+                if k1.startswith('function') and AST[func_call_search]['name'] == AST[k1]['name']:
                     func += 1
-                    code = code + AST[k1]['name'] + ":\n    push ebp\n    mov ebp, esp\n"
+                    functions.append(AST[k1]['name'])
+                    main_name = AST[k1]['name']
+                    code = code + AST[k1]['name'] + " PROC\n    push ebp\n    mov ebp, esp\n"
                     for k2 in AST[k1]:
                         if k2.startswith('statement'):
                             code_from_ast(AST[k1][k2])
-
-                    code = code.replace('\n    push eax\n    pop eax', '')
-                    code = code.replace('\n    push ebx\n    pop ebx', '')
-                    code = code + "    mov esp, ebp\n    pop ebp\n    ret"
+                    code = code + "    add esp, {}\n    pop ebp\n    ret\n{} ENDP\n\n".format(abs(counter), AST[k1]['name'])
+                elif k1.startswith('function'):
+                    for check_if_last in AST:
+                        if check_if_last.startswith('function'):
+                            last = check_if_last.replace('function', '')
+                    if k1.replace('function', '') == last:
+                        arg_count = 0
+                        for k in AST[k1]:
+                            if k.startswith('arg'):
+                                arg_count += 1
+                        save_count = counter
+                        save_vars = var_map
+                        var_map = {}
+                        counter = -0
+                        print(counter)
+                        functions.append(AST[k1]['name'])
+                        code = code + AST[k1]['name'] + " PROC\n    push ebp\n    mov ebp, esp\n"
+                        for k2 in AST[k1]:
+                            if k2.startswith('statement'):
+                                code_from_ast(AST[k1][k2])
+                            if k2.startswith('arg'):
+                                local_counter += 4
+                                var_map[AST[k1][k2]] = local_counter + 4
+                        code = code + "    add esp, {}\n    pop ebp\n    ret {}\n".format(abs(counter), local_counter)
+                        code = code + "{} ENDP\n\n".format(AST[k1]['name'])
+                        counter = save_count
+                        var_map = save_vars
             if func != 1:
                 print('\n Function declaration not found')
                 input()
                 exit(1)
+    code = code + """NumbToStr PROC uses ebx x:DWORD,buffer:DWORD
+    mov     ecx,buffer
+    mov     eax,x
+    mov     ebx,10
+    add     ecx,ebx
+@@:
+    xor     edx,edx
+    div     ebx
+    add     edx,48
+    mov     BYTE PTR [ecx],dl
+    dec     ecx
+    test    eax,eax
+    jnz     @b
+    inc     ecx
+    mov     eax,ecx
+    ret
+NumbToStr ENDP
+
+END start"""
+    code = code.replace('\n    push eax\n    pop eax', '')
+    code = code.replace('\n    push ebx\n    pop ebx', '')
+    code = code.replace('{function_decl}', '\n'.join(list(map(lambda x: x + '   PROTO STDCALL', functions))))
+    code = code.replace('{main_func}', main_name)
     return code
 
 
@@ -996,7 +1196,7 @@ def main(argv):
     print("Generated Code:")
     print(code)
 
-    with open('4-14-Python-ІВ-81-Зубець.asm', 'w') as f:
+    with open('5-14-Python-ІВ-81-Зубець.asm', 'w') as f:
         f.write(code)
 
     print("\nEnter anything to exit")
