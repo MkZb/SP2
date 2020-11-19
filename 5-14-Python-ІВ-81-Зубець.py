@@ -426,8 +426,8 @@ def parser(tokens: list):
             print("Unexpected EOF")
             input()
             exit(1)
+
         if token[1] != 'white_space':
-            print("KILL ME", token)
             print("\nError function body must be in white spaces\nLine: {}, Character: {}".format(token[0][1]['line'],
                                                                                                   token[0][1][
                                                                                                       'symbol']))
@@ -535,6 +535,7 @@ def parser(tokens: list):
                                                                                   tokenIterator.get_current_id() - current_spaces - 1)
             tokenIterator.set_id(id)
             token = tokenIterator.next_item()
+
             token, new_spaces = skip_white_spaces(token, tokenIterator)
             save_id = id
             while new_spaces == current_spaces:
@@ -842,7 +843,8 @@ def parser(tokens: list):
             token = skip_white_spaces(token, tokenIterator)[0]
             tokenIterator.set_id(save_id - 1)
             token = tokenIterator.next_item()
-            statement, id = parse_statement(tokens, tokenIterator.get_current_id())
+            token = skip_new_line(token, tokenIterator)
+            statement, id = parse_statement(tokens, tokenIterator.get_current_id() - 1)
             func['statement' + str(statement_counter)] = statement
             tokenIterator.set_id(id)
             token = skip_new_line(token, tokenIterator)
@@ -1057,10 +1059,17 @@ def codegen(AST):
                 if k.startswith('arg'):
                     arg_count += 1
 
+            last = False
             for k in AST:
                 if k.startswith('function'):
                     if AST[k]['name'] == exp['name']:
                         last = AST[k]
+
+            if(not last):
+                print("Error function {} is not defined\n".format(exp['name']))
+                input()
+                exit(1)
+
             for arg in last:
                 if arg.startswith('arg'):
                     expected_args += 1
@@ -1115,8 +1124,9 @@ def codegen(AST):
                             code_from_ast(AST[k1][k2])
                     code = code + "    add esp, {}\n    pop ebp\n    ret\n{} ENDP\n\n".format(abs(counter), AST[k1]['name'])
                 elif k1.startswith('function'):
+                    func_name = AST[k1]['name']
                     for check_if_last in AST:
-                        if check_if_last.startswith('function'):
+                        if check_if_last.startswith('function') and AST[check_if_last]['name'] == func_name:
                             last = check_if_last.replace('function', '')
                     if k1.replace('function', '') == last:
                         arg_count = 0
@@ -1127,7 +1137,6 @@ def codegen(AST):
                         save_vars = var_map
                         var_map = {}
                         counter = -0
-                        print(counter)
                         functions.append(AST[k1]['name'])
                         code = code + AST[k1]['name'] + " PROC\n    push ebp\n    mov ebp, esp\n"
                         for k2 in AST[k1]:
@@ -1140,6 +1149,7 @@ def codegen(AST):
                         code = code + "{} ENDP\n\n".format(AST[k1]['name'])
                         counter = save_count
                         var_map = save_vars
+                        local_counter = 0
             if func != 1:
                 print('\n Function declaration not found')
                 input()
