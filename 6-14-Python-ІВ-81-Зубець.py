@@ -10,7 +10,7 @@ def check_args(argv):
     try:
         opts, args = getopt.getopt(argv, "i:o", ["input="])
     except getopt.GetoptError:
-        print('5-14-Python-ІВ-81-Зубець.py -i <input_file>')
+        print('6-14-Python-ІВ-81-Зубець.py -i <input_file>')
         input()
         exit(1)
 
@@ -18,7 +18,7 @@ def check_args(argv):
         if opt in ('-i', '--input'):
             return arg
 
-    return '5-14-Python-ІВ-81-Зубець.txt'
+    return '6-14-Python-ІВ-81-Зубець.txt'
 
 
 # LEXER
@@ -83,7 +83,11 @@ def tokenizer(items: list):
         b'else': 'else',
         b'elif': 'elif',
         b',': 'coma',
-        b'>>=': 'r_shift_equals'
+        b'>>=': 'r_shift_equals',
+        b'while': 'while',
+        b'break': 'break',
+        b'continue': 'continue',
+        b'and': 'and'
     }
     for i in items:
         if i[0] in templates.keys():
@@ -228,7 +232,7 @@ def parser(tokens: list):
                 next_item = token[1]
                 while next_item != 'closed_parentheses':
                     args += 1
-                    factor['arg' + str(args)], id = parse_exp(tokens, tokenIterator.get_current_id() - 1)
+                    factor['arg' + str(args)], id = parse_log_and(tokens, tokenIterator.get_current_id() - 1)
                     tokenIterator.set_id(id)
                     token = tokenIterator.next_item()
                     token, save_id = skip_white_spaces(token, tokenIterator)
@@ -253,7 +257,8 @@ def parser(tokens: list):
 
         if token[1] == 'open_parentheses':
             factor['kind'] = 'Exp in brackets'
-            exp, id = parse_exp(tokens, tokenIterator.get_current_id())
+            exp, id = parse_log_and(tokens, tokenIterator.get_current_id())
+            print(exp)
             factor['exp'] = exp
             tokenIterator.set_id(id)
             token = tokenIterator.next_item()
@@ -393,7 +398,7 @@ def parser(tokens: list):
 
         while next_item == 'r_shift':
             counter += 1
-            term, id = parse_factor(tokens, tokenIterator.get_current_id())
+            term, id = parse_term(tokens, tokenIterator.get_current_id())
             exp['r_shift' + str(counter)] = term
             tokenIterator.set_id(id)
             save_id = id
@@ -401,6 +406,42 @@ def parser(tokens: list):
             token = skip_white_spaces(token, tokenIterator)[0]
             next_item = token[1]
             exp['shift_counter'] = counter
+
+        return exp, save_id
+
+    def parse_log_and(tokens, index = 0):
+        exp = {}
+        tokenIterator = TokensIter(tokens, index)
+
+        exp['kind'] = 'Expression'
+        exp['type'] = 'Non Binary'
+
+        term, id = parse_exp(tokens, tokenIterator.get_current_id())
+        tokenIterator.set_id(id)
+        save_id = id
+        token = tokenIterator.next_item()
+        token = skip_white_spaces(token, tokenIterator)[0]
+
+        next_item = token[1]
+
+        if next_item != 'and':
+            exp = term
+            return exp, save_id
+
+        counter = 1
+        exp['type'] = 'And'
+        exp['and' + str(counter)] = term
+
+        while next_item == 'and':
+            counter += 1
+            term, id = parse_exp(tokens, tokenIterator.get_current_id())
+            exp['and' + str(counter)] = term
+            tokenIterator.set_id(id)
+            save_id = id
+            token = tokenIterator.next_item()
+            token = skip_white_spaces(token, tokenIterator)[0]
+            next_item = token[1]
+            exp['and_counter'] = counter
 
         return exp, save_id
 
@@ -443,13 +484,38 @@ def parser(tokens: list):
 
         if token[1] == 'return_keyword':
             spacing.append((spaces, 'statement'))
-            exp, id = parse_exp(tokens, tokenIterator.get_current_id())
+            exp, id = parse_log_and(tokens, tokenIterator.get_current_id())
 
             statement['kind'] = 'Statement'
             statement['type'] = 'Return'
             statement['exp'] = exp
 
             tokenIterator.set_id(id)
+            token = tokenIterator.next_item()
+            token = skip_white_spaces(token, tokenIterator)[0]
+            if token[1] not in ['new_line']:
+                print("\nExpected new line\nLine: {}, Character: {}".format(token[0][1]['line'],
+                                                                            token[0][1]['symbol']))
+                input()
+                exit(1)
+            return statement, tokenIterator.get_current_id()
+        elif token[1] == 'break':
+            statement['kind'] = 'Statement'
+            statement['type'] = 'Break'
+
+            token = tokenIterator.next_item()
+            token = skip_white_spaces(token, tokenIterator)[0]
+            if token[1] not in ['new_line']:
+                print("\nExpected new line\nLine: {}, Character: {}".format(token[0][1]['line'],
+                                                                            token[0][1]['symbol']))
+                input()
+                exit(1)
+            return statement, tokenIterator.get_current_id()
+
+        elif token[1] == 'continue':
+            statement['kind'] = 'Statement'
+            statement['type'] = 'Continue'
+
             token = tokenIterator.next_item()
             token = skip_white_spaces(token, tokenIterator)[0]
             if token[1] not in ['new_line']:
@@ -477,7 +543,7 @@ def parser(tokens: list):
                 statement['type'] = 'R_shift + Assignment'
                 statement['value'], id = parse_factor(tokens, tokenIterator.get_current_id() - 1)
             else:
-                statement['value'], id = parse_exp(tokens, tokenIterator.get_current_id())
+                statement['value'], id = parse_log_and(tokens, tokenIterator.get_current_id())
 
             tokenIterator.set_id(id)
             token = tokenIterator.next_item()
@@ -498,7 +564,7 @@ def parser(tokens: list):
             token = tokenIterator.next_item()
             token = skip_white_spaces(token, tokenIterator)[0]
 
-            statement['condition'], id = parse_exp(tokens, tokenIterator.get_current_id() - 1)
+            statement['condition'], id = parse_log_and(tokens, tokenIterator.get_current_id() - 1)
 
             tokenIterator.set_id(id)
 
@@ -572,7 +638,7 @@ def parser(tokens: list):
                 token = skip_white_spaces(token, tokenIterator)[0]
 
                 statement['elif' + str(elif_count)] = {}
-                statement['elif' + str(elif_count)]['condition'], id = parse_exp(tokens,
+                statement['elif' + str(elif_count)]['condition'], id = parse_log_and(tokens,
                                                                                  tokenIterator.get_current_id() - 1)
                 tokenIterator.set_id(id)
                 token = tokenIterator.next_item()
@@ -695,7 +761,83 @@ def parser(tokens: list):
                     break
 
             return statement, tokenIterator.get_current_id() - 1
+        elif token[1] == 'while':
+            spacing.append((spaces, 'while'))
+            statement['kind'] = 'Statement'
+            statement['type'] = 'While loop'
 
+            token = tokenIterator.next_item()
+            token = skip_white_spaces(token, tokenIterator)[0]
+
+
+            statement['condition'], id = parse_log_and(tokens, tokenIterator.get_current_id() - 1)
+
+            tokenIterator.set_id(id)
+
+            token = tokenIterator.next_item()
+            token = skip_white_spaces(token, tokenIterator)[0]
+
+            if token[1] not in ['colon']:
+                print("\nExpected ':'\nLine: {}, Character: {}".format(token[0][1]['line'],
+                                                                       token[0][1]['symbol']))
+                input()
+                exit(1)
+
+            token = tokenIterator.next_item()
+            token = skip_white_spaces(token, tokenIterator)[0]
+
+            if token[1] not in ['new_line']:
+                print("\nExpected new line\nLine: {}, Character: {}".format(token[0][1]['line'],
+                                                                            token[0][1]['symbol']))
+                input()
+                exit(1)
+
+            token = tokenIterator.next_item()
+            token, current_spaces = skip_white_spaces(token, tokenIterator)
+            last_item = spacing.pop()
+
+            if current_spaces <= last_item[0]:
+                print("\nUnidentified nesting\nLine: {}, Character: {}".format(token[0][1]['line'],
+                                                                               token[0][1]['symbol']))
+                input()
+                exit(1)
+            else:
+                spacing.append(last_item)
+            statement_counter = 1
+            statement['statement' + str(statement_counter)], id = parse_statement(tokens,
+                                                                                  tokenIterator.get_current_id() - current_spaces - 1)
+            tokenIterator.set_id(id)
+            token = tokenIterator.next_item()
+
+            token, new_spaces = skip_white_spaces(token, tokenIterator)
+            save_id = id
+
+            while new_spaces == current_spaces:
+                statement_counter += 1
+                statement['statement' + str(statement_counter)], id = parse_statement(tokens,
+                                                                                      tokenIterator.get_current_id() - current_spaces - 1)
+                tokenIterator.set_id(id)
+                save_id = id
+                token = tokenIterator.next_item()
+                token, new_spaces = skip_white_spaces(token, tokenIterator)
+
+            tokenIterator.set_id(save_id - 1)
+            token = tokenIterator.next_item()
+            if token[1] not in ['new_line']:
+                print("\nExpected new line\nLine: {}, Character: {}".format(token[0][1]['line'],
+                                                                            token[0][1]['symbol']))
+                input()
+                exit(1)
+
+            token = skip_new_line(token, tokenIterator)
+            save_id = tokenIterator.get_current_id()
+
+            while True:
+                last_item = spacing.pop()
+                if last_item[1] == 'while':
+                    break
+
+            return statement, tokenIterator.get_current_id() - 1
 
         else:
             print("\nStatement must be either return or assignment\nLine: {}, Character: {}".format(token[0][1]['line'],
@@ -829,7 +971,7 @@ def parser(tokens: list):
         save_id = tokenIterator.get_current_id()
         token = skip_white_spaces_new_line(token, tokenIterator)
         next_item = token[1]
-        while next_item in ['identifier', 'return_keyword', 'if']:
+        while next_item in ['identifier', 'return_keyword', 'if', 'while']:
             if next_item == 'identifier':
                 token = tokenIterator.next_item()
                 token = skip_white_spaces(token, tokenIterator)[0]
@@ -970,14 +1112,14 @@ cond = 0
 cond2 = 0
 labels_list = []
 labels_2 = []
-
+and_counter = 0
+while_counter = 0
 
 def codegen(AST):
     global code, var_map, counter, cond, local_counter
     functions = []
-
     def code_from_ast(exp: dict):
-        global code, var_map, counter, cond, cond2, labels_list
+        global code, var_map, counter, cond, cond2, labels_list, and_counter, while_counter
 
         if exp['kind'] == 'Constant':
             code = code + '    mov eax, {}\n    push eax\n'.format(exp['value'])
@@ -1018,7 +1160,7 @@ def codegen(AST):
                 cond += 1
                 cond2 += 1
                 code_from_ast(exp['condition'])
-                code = code + '    pop eax\n    cmp eax, 0\n    je c{}\n'.format(cond)
+                code = code + '    pop eax\n    cmp eax, 0\n    je @c{}\n'.format(cond)
                 labels_list.append('c{}'.format(cond))
                 labels_2.append('end{}'.format(cond2))
 
@@ -1028,30 +1170,46 @@ def codegen(AST):
 
                 if len(labels_list) != 0:
                     end = labels_2.pop()
-                    code = code + '    jmp {}\n'.format(end)
+                    code = code + '    jmp @{}\n'.format(end)
                     labels_2.append(end)
-                    code = code + '{}:\n'.format(labels_list.pop())
+                    code = code + '@{}:\n'.format(labels_list.pop())
 
                 for key in exp:
                     if key.startswith('elif'):
                         cond += 1
                         code_from_ast(exp[key]['condition'])
-                        code = code + '    pop eax\n    cmp eax, 0\n    je c{}\n'.format(cond)
+                        code = code + '    pop eax\n    cmp eax, 0\n    je @c{}\n'.format(cond)
                         labels_list.append('c{}'.format(cond))
                         for elif_statement in exp[key]:
                             if elif_statement.startswith('statement'):
                                 code_from_ast(exp[key][elif_statement])
                         end = labels_2.pop()
-                        code = code + '    jmp {}\n'.format(end)
+                        code = code + '    jmp @{}\n'.format(end)
                         labels_2.append(end)
-                        code = code + '{}:\n'.format(labels_list.pop())
+                        code = code + '@{}:\n'.format(labels_list.pop())
 
                     if key == 'else':
                         for else_statement in exp[key]:
                             if else_statement.startswith('statement'):
                                 code_from_ast(exp[key][else_statement])
 
-                code = code + '{}:\n'.format(labels_2.pop())
+                code = code + '@{}:\n'.format(labels_2.pop())
+            elif exp['type'] == 'Break':
+                code = code + '    jmp @{}\n'.format("while_end" + str(while_counter))
+            elif exp['type'] == 'Continue':
+                code = code + '    jmp @{}\n'.format("while_start" + str(while_counter))
+            elif exp['type'] == "While loop":
+                while_counter += 1
+                local_while_count = while_counter
+                code = code + '@{}:\n'.format("while_start" + str(local_while_count))
+                code_from_ast(exp['condition'])
+                code = code + '    pop eax\n    cmp eax, 0\n    je @{}\n'.format("while_end" + str(local_while_count))
+
+                for st in exp:
+                    if st.startswith('statement'):
+                        code_from_ast(exp[st])
+                code = code + '    jmp @{}\n'.format("while_start" + str(local_while_count))
+                code = code + '@{}:\n'.format("while_end" + str(local_while_count))
         if exp['kind'] == 'Function call':
             arg_count = 0
             expected_args = 0
@@ -1089,6 +1247,15 @@ def codegen(AST):
                 code = code + '    pop eax\n    not eax\n    push eax\n'
             if exp['type'] == 'Non Binary':
                 code_from_ast(exp['factor'])
+            if exp['type'] == 'And':
+                and_counter += 1
+                local_and = and_counter
+                for i in range(1, exp['and_counter'] + 1):
+                    code_from_ast(exp['and' + str(i)])
+                    code = code + '    pop eax\n    cmp eax, 0\n    je @{}\n'.format("end_and" + str(local_and))
+                    if i == exp['and_counter']:
+                        code = code + '    mov eax, 1\n'
+                code = code + '@{}:\n    push eax\n'.format("end_and" + str(local_and))
             if exp['type'] == 'Shifting':
                 code_from_ast(exp['r_shift1'])
                 for i in range(2, exp['shift_counter'] + 1):
@@ -1206,7 +1373,7 @@ def main(argv):
     print("Generated Code:")
     print(code)
 
-    with open('5-14-Python-ІВ-81-Зубець.asm', 'w') as f:
+    with open('6-14-Python-ІВ-81-Зубець.asm', 'w') as f:
         f.write(code)
 
     print("\nEnter anything to exit")
