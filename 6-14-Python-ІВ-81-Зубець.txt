@@ -1,4 +1,14 @@
 def main():
-    return 3 >> 1 + 5
+    return myF(9312, 1744)
+
+def myF(a, b):
+    min = a if a < b else b
+    var = min
+    result = 0
+    while (var > 0):
+        if (min % var == 0):
+            result = result + var
+        var = var - 1
+    return result
 
 main()

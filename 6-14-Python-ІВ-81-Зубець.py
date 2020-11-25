@@ -34,7 +34,7 @@ def lexer(file_name):
 # Function that splits input string into lexems
 def string_scanner(string: bytes, pos=0):
     def next_item(start_pos):
-        delimiters = [' ', '\n', ':', ';', '(', ')', '-', '+', '~', '=', ',']
+        delimiters = [' ', '\n', ':', ';', '(', ')', '-', '+', '~', '=', ',', '>', '<', '%']
         current_pos = start_pos
         line_counter = 1
         while current_pos < str_len:
@@ -87,7 +87,11 @@ def tokenizer(items: list):
         b'while': 'while',
         b'break': 'break',
         b'continue': 'continue',
-        b'and': 'and'
+        b'and': 'and',
+        b'>': 'greater',
+        b'<': 'less',
+        b'==': 'equal_check',
+        b'%': 'remainder'
     }
     for i in items:
         if i[0] in templates.keys():
@@ -139,6 +143,11 @@ def tokenizer(items: list):
                 if tokens[i + 1][1] == 'equal':
                     tokens[i] = ((b'>>=', tokens[i][0][1]), templates[b'>>='])
                     tokens.pop(i + 1)
+            if tokens[i][1] == 'equal':
+                if tokens[i + 1][1] == 'equal':
+                    tokens[i] = ((b'>>=', tokens[i][0][1]), templates[b'=='])
+                    tokens.pop(i + 1)
+
     return tokens
 
 
@@ -232,7 +241,7 @@ def parser(tokens: list):
                 next_item = token[1]
                 while next_item != 'closed_parentheses':
                     args += 1
-                    factor['arg' + str(args)], id = parse_log_and(tokens, tokenIterator.get_current_id() - 1)
+                    factor['arg' + str(args)], id = parse_conditional_exp(tokens, tokenIterator.get_current_id() - 1)
                     tokenIterator.set_id(id)
                     token = tokenIterator.next_item()
                     token, save_id = skip_white_spaces(token, tokenIterator)
@@ -257,7 +266,7 @@ def parser(tokens: list):
 
         if token[1] == 'open_parentheses':
             factor['kind'] = 'Exp in brackets'
-            exp, id = parse_log_and(tokens, tokenIterator.get_current_id())
+            exp, id = parse_conditional_exp(tokens, tokenIterator.get_current_id())
             print(exp)
             factor['exp'] = exp
             tokenIterator.set_id(id)
@@ -331,9 +340,44 @@ def parser(tokens: list):
     def parse_term(tokens, index=0):
         exp = {}
         tokenIterator = TokensIter(tokens, index)
+
+        exp['kind'] = 'Expression'
+        exp['type'] = 'Remainder'
+
+        term, id = parse_factor(tokens, tokenIterator.get_current_id())
+        tokenIterator.set_id(id)
+        save_id = id
+        token = tokenIterator.next_item()
+        token = skip_white_spaces(token, tokenIterator)[0]
+
+        next_item = token[1]
+
+        if next_item not in ['remainder']:
+            exp = term
+            return exp, save_id
+
+        counter = 1
+        exp['remainder1'] = term
+
+        while next_item == 'remainder':
+            counter += 1
+            term, id = parse_factor(tokens, tokenIterator.get_current_id())
+            exp['remainder' + str(counter)] = term
+            tokenIterator.set_id(id)
+            save_id = id
+            token = tokenIterator.next_item()
+            token = skip_white_spaces(token, tokenIterator)[0]
+            next_item = token[1]
+            exp['remainder_counter'] = counter
+
+        return exp, save_id
+
+    def parse_add(tokens, index=0):
+        exp = {}
+        tokenIterator = TokensIter(tokens, index)
         exp['kind'] = 'Expression'
         exp['type'] = 'Non Binary'
-        factor, id = parse_factor(tokens, tokenIterator.get_current_id())
+        factor, id = parse_term(tokens, tokenIterator.get_current_id())
         tokenIterator.set_id(id)
 
         save_id = id
@@ -353,7 +397,7 @@ def parser(tokens: list):
         while next_item in ['addition', 'substraction']:
             if next_item == 'addition':
                 add_counter += 1
-                factor, id = parse_factor(tokens, tokenIterator.get_current_id())
+                factor, id = parse_term(tokens, tokenIterator.get_current_id())
                 exp['addition' + str(add_counter)] = factor
                 tokenIterator.set_id(id)
                 save_id = id
@@ -363,7 +407,7 @@ def parser(tokens: list):
                 exp['add_count'] = add_counter
             else:
                 sub_counter += 1
-                factor, id = parse_factor(tokens, tokenIterator.get_current_id())
+                factor, id = parse_term(tokens, tokenIterator.get_current_id())
                 exp['substraction' + str(sub_counter)] = factor
                 tokenIterator.set_id(id)
                 save_id = id
@@ -374,13 +418,13 @@ def parser(tokens: list):
 
         return exp, save_id
 
-    def parse_exp(tokens, index=0):
+    def parse_shift(tokens, index=0):
         exp = {}
         tokenIterator = TokensIter(tokens, index)
 
         exp['kind'] = 'Expression'
         exp['type'] = 'Non Binary'
-        term, id = parse_term(tokens, tokenIterator.get_current_id())
+        term, id = parse_add(tokens, tokenIterator.get_current_id())
         tokenIterator.set_id(id)
         save_id = id
         token = tokenIterator.next_item()
@@ -398,7 +442,7 @@ def parser(tokens: list):
 
         while next_item == 'r_shift':
             counter += 1
-            term, id = parse_term(tokens, tokenIterator.get_current_id())
+            term, id = parse_add(tokens, tokenIterator.get_current_id())
             exp['r_shift' + str(counter)] = term
             tokenIterator.set_id(id)
             save_id = id
@@ -409,14 +453,50 @@ def parser(tokens: list):
 
         return exp, save_id
 
-    def parse_log_and(tokens, index = 0):
+    def parse_comparison(tokens, index=0):
+        exp = {}
+        tokenIterator = TokensIter(tokens, index)
+
+        exp['kind'] = 'Expression'
+        exp['type'] = 'Comparison'
+
+        term, id = parse_shift(tokens, tokenIterator.get_current_id())
+        tokenIterator.set_id(id)
+        save_id = id
+        token = tokenIterator.next_item()
+        token = skip_white_spaces(token, tokenIterator)[0]
+
+        next_item = token[1]
+
+        if next_item not in ['greater', 'less', 'equal_check']:
+            exp = term
+            return exp, save_id
+
+        counter = 1
+        exp['comparison1'] = term
+
+        while next_item in ['greater', 'less', 'equal_check']:
+            counter += 1
+            term, id = parse_shift(tokens, tokenIterator.get_current_id())
+            exp['comparison' + str(counter)] = term
+            exp['comparison' + str(counter) + '_sign'] = next_item
+            tokenIterator.set_id(id)
+            save_id = id
+            token = tokenIterator.next_item()
+            token = skip_white_spaces(token, tokenIterator)[0]
+            next_item = token[1]
+            exp['comparison_counter'] = counter
+
+        return exp, save_id
+
+    def parse_log_and(tokens, index=0):
         exp = {}
         tokenIterator = TokensIter(tokens, index)
 
         exp['kind'] = 'Expression'
         exp['type'] = 'Non Binary'
 
-        term, id = parse_exp(tokens, tokenIterator.get_current_id())
+        term, id = parse_comparison(tokens, tokenIterator.get_current_id())
         tokenIterator.set_id(id)
         save_id = id
         token = tokenIterator.next_item()
@@ -434,7 +514,7 @@ def parser(tokens: list):
 
         while next_item == 'and':
             counter += 1
-            term, id = parse_exp(tokens, tokenIterator.get_current_id())
+            term, id = parse_comparison(tokens, tokenIterator.get_current_id())
             exp['and' + str(counter)] = term
             tokenIterator.set_id(id)
             save_id = id
@@ -444,6 +524,52 @@ def parser(tokens: list):
             exp['and_counter'] = counter
 
         return exp, save_id
+
+    def parse_conditional_exp(tokens, index=0):
+        exp = {}
+        tokenIterator = TokensIter(tokens, index)
+
+        exp['kind'] = 'Expression'
+        exp['type'] = 'Conditional'
+
+        term, id = parse_log_and(tokens, tokenIterator.get_current_id())
+        tokenIterator.set_id(id)
+        save_id = id
+        token = tokenIterator.next_item()
+        token = skip_white_spaces(token, tokenIterator)[0]
+        next_item = token[1]
+
+        if next_item != 'if':
+            exp = term
+            return exp, save_id
+
+        exp['true_condition'] = term
+
+        token = tokenIterator.next_item()
+        token = skip_white_spaces(token, tokenIterator)[0]
+
+        term, id = parse_log_and(tokens, tokenIterator.get_current_id() - 1)
+        exp['condition'] = term
+
+        tokenIterator.set_id(id)
+
+        token = tokenIterator.next_item()
+        token = skip_white_spaces(token, tokenIterator)[0]
+
+        if token[1] != 'else':
+            print("\nExpected 'else' keyword\nLine: {}, Character: {}".format(token[0][1]['line'],
+                                                                              token[0][1][
+                                                                                  'symbol']))
+            input()
+            exit(1)
+
+        token = tokenIterator.next_item()
+        token = skip_white_spaces(token, tokenIterator)[0]
+
+        term, id = parse_conditional_exp(tokens, tokenIterator.get_current_id() - 1)
+        exp['false_condition'] = term
+
+        return exp, id
 
     def parse_statement(tokens, index=0):
         def check_nesting(space_info: list, spaces: int, type: str):
@@ -484,7 +610,7 @@ def parser(tokens: list):
 
         if token[1] == 'return_keyword':
             spacing.append((spaces, 'statement'))
-            exp, id = parse_log_and(tokens, tokenIterator.get_current_id())
+            exp, id = parse_conditional_exp(tokens, tokenIterator.get_current_id())
 
             statement['kind'] = 'Statement'
             statement['type'] = 'Return'
@@ -543,7 +669,7 @@ def parser(tokens: list):
                 statement['type'] = 'R_shift + Assignment'
                 statement['value'], id = parse_factor(tokens, tokenIterator.get_current_id() - 1)
             else:
-                statement['value'], id = parse_log_and(tokens, tokenIterator.get_current_id())
+                statement['value'], id = parse_conditional_exp(tokens, tokenIterator.get_current_id())
 
             tokenIterator.set_id(id)
             token = tokenIterator.next_item()
@@ -564,7 +690,7 @@ def parser(tokens: list):
             token = tokenIterator.next_item()
             token = skip_white_spaces(token, tokenIterator)[0]
 
-            statement['condition'], id = parse_log_and(tokens, tokenIterator.get_current_id() - 1)
+            statement['condition'], id = parse_conditional_exp(tokens, tokenIterator.get_current_id() - 1)
 
             tokenIterator.set_id(id)
 
@@ -621,8 +747,8 @@ def parser(tokens: list):
                 input()
                 exit(1)
 
-            token = skip_new_line(token, tokenIterator)
             save_id = tokenIterator.get_current_id()
+            token = skip_new_line(token, tokenIterator)
             token, new_spaces = skip_white_spaces(token, tokenIterator)
             elif_check = token[1]
             if elif_check == 'elif':
@@ -638,8 +764,8 @@ def parser(tokens: list):
                 token = skip_white_spaces(token, tokenIterator)[0]
 
                 statement['elif' + str(elif_count)] = {}
-                statement['elif' + str(elif_count)]['condition'], id = parse_log_and(tokens,
-                                                                                 tokenIterator.get_current_id() - 1)
+                statement['elif' + str(elif_count)]['condition'], id = parse_conditional_exp(tokens,
+                                                                                             tokenIterator.get_current_id() - 1)
                 tokenIterator.set_id(id)
                 token = tokenIterator.next_item()
                 if token[1] not in ['colon']:
@@ -693,8 +819,8 @@ def parser(tokens: list):
 
             tokenIterator.set_id(save_id - 1)
             token = tokenIterator.next_item()
-            token = skip_new_line(token, tokenIterator)
             save_id = tokenIterator.get_current_id()
+            token = skip_new_line(token, tokenIterator)
             token, new_spaces = skip_white_spaces(token, tokenIterator)
             else_check = token[1]
 
@@ -753,14 +879,12 @@ def parser(tokens: list):
 
                 token = skip_new_line(token, tokenIterator)
             else:
-                tokenIterator.set_id(save_id - 1)
-
+                tokenIterator.set_id(save_id)
             while True:
                 last_item = spacing.pop()
                 if last_item[1] == 'if':
                     break
-
-            return statement, tokenIterator.get_current_id() - 1
+            return statement, tokenIterator.get_current_id()
         elif token[1] == 'while':
             spacing.append((spaces, 'while'))
             statement['kind'] = 'Statement'
@@ -769,8 +893,7 @@ def parser(tokens: list):
             token = tokenIterator.next_item()
             token = skip_white_spaces(token, tokenIterator)[0]
 
-
-            statement['condition'], id = parse_log_and(tokens, tokenIterator.get_current_id() - 1)
+            statement['condition'], id = parse_conditional_exp(tokens, tokenIterator.get_current_id() - 1)
 
             tokenIterator.set_id(id)
 
@@ -1114,12 +1237,14 @@ labels_list = []
 labels_2 = []
 and_counter = 0
 while_counter = 0
+cond_exp = 0
 
 def codegen(AST):
     global code, var_map, counter, cond, local_counter
     functions = []
+
     def code_from_ast(exp: dict):
-        global code, var_map, counter, cond, cond2, labels_list, and_counter, while_counter
+        global code, var_map, counter, cond, cond2, labels_list, and_counter, while_counter, cond_exp
 
         if exp['kind'] == 'Constant':
             code = code + '    mov eax, {}\n    push eax\n'.format(exp['value'])
@@ -1223,7 +1348,7 @@ def codegen(AST):
                     if AST[k]['name'] == exp['name']:
                         last = AST[k]
 
-            if(not last):
+            if (not last):
                 print("Error function {} is not defined\n".format(exp['name']))
                 input()
                 exit(1)
@@ -1242,6 +1367,34 @@ def codegen(AST):
             code = code + '    call {}\n    push eax\n'.format(exp['name'], arg_count * 4)
 
         if exp['kind'] == 'Expression':
+            if exp['type'] == 'Remainder':
+                code_from_ast(exp['remainder1'])
+                for i in range(2, exp['remainder_counter'] + 1):
+                    code_from_ast(exp['remainder' + str(i)])
+                    code = code + '    mov edx, 0\n    pop ebx\n    pop eax\n    div ebx\n    mov eax, edx\n    push eax\n'
+
+            if exp['type'] == 'Comparison':
+                code_from_ast(exp['comparison1'])
+                for i in range(2, exp['comparison_counter'] + 1):
+                    code_from_ast(exp['comparison' + str(i)])
+                    code = code + '    pop ebx\n    pop eax\n    cmp eax, ebx\n'
+                    if (exp['comparison'+str(i)+'_sign']) == 'equal_check':
+                        code = code + '    mov eax, 0\n    sete al\n    push eax\n'
+                    if (exp['comparison'+str(i)+'_sign']) == 'less':
+                        code = code + '    mov eax, 0\n    setl al\n    push eax\n'
+                    if (exp['comparison'+str(i)+'_sign']) == 'greater':
+                        code = code + '    mov eax, 0\n    setg al\n    push eax\n'
+
+            if exp['type'] == 'Conditional':
+                cond += 1
+                local_cond = cond
+                code_from_ast(exp['condition'])
+                code = code + '    pop eax\n    cmp eax, 0\n    je @{}\n'.format('cond_false' + str(local_cond))
+                code_from_ast(exp['true_condition'])
+                code = code + '    jmp @{}\n'.format('cond_end' + str(local_cond))
+                code = code + '@{}:\n'.format('cond_false' + str(local_cond))
+                code_from_ast(exp['false_condition'])
+                code = code + '@{}:\n'.format('cond_end' + str(local_cond))
             if exp['type'] == 'Unary':
                 code_from_ast(exp['factor'])
                 code = code + '    pop eax\n    not eax\n    push eax\n'
@@ -1289,7 +1442,8 @@ def codegen(AST):
                     for k2 in AST[k1]:
                         if k2.startswith('statement'):
                             code_from_ast(AST[k1][k2])
-                    code = code + "    add esp, {}\n    pop ebp\n    ret\n{} ENDP\n\n".format(abs(counter), AST[k1]['name'])
+                    code = code + "    add esp, {}\n    pop ebp\n    ret\n{} ENDP\n\n".format(abs(counter),
+                                                                                              AST[k1]['name'])
                 elif k1.startswith('function'):
                     func_name = AST[k1]['name']
                     for check_if_last in AST:
