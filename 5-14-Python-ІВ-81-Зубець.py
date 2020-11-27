@@ -393,7 +393,7 @@ def parser(tokens: list):
 
         while next_item == 'r_shift':
             counter += 1
-            term, id = parse_factor(tokens, tokenIterator.get_current_id())
+            term, id = parse_term(tokens, tokenIterator.get_current_id())
             exp['r_shift' + str(counter)] = term
             tokenIterator.set_id(id)
             save_id = id
@@ -973,8 +973,13 @@ labels_2 = []
 
 
 def codegen(AST):
-    global code, var_map, counter, cond, local_counter
+    global code, var_map, counter, cond, local_counter, tokens
     functions = []
+
+    def find_token(search_item):
+        for i in tokens:
+            if i[0][0].decode(coding) == search_item:
+                return i
 
     def code_from_ast(exp: dict):
         global code, var_map, counter, cond, cond2, labels_list
@@ -984,7 +989,11 @@ def codegen(AST):
 
         if exp['kind'] == 'Variable':
             if exp['name'] not in var_map.keys():
-                print('Variable "{}" is not defined!'.format(exp['name']))
+                print('Variable "{}" is not defined!\nLine: {}, Character: {}'.format(exp['name'],
+                                                                                      find_token(exp['name'])[0][1][
+                                                                                          'line'],
+                                                                                      find_token(exp['name'])[0][1][
+                                                                                          'symbol']))
                 input()
                 exit(1)
             code = code + '    mov eax, [ebp {:+d}]\n    push eax\n'.format(var_map[exp['name']])
@@ -1007,7 +1016,17 @@ def codegen(AST):
                     code = code + '    pop eax\n    mov [ebp {:+d}], eax\n'.format(var_map[exp['var']])
             elif exp['type'] == 'R_shift + Assignment':
                 if exp['var'] not in var_map.keys():
-                    print("Error variable {} is not defined before editing\n".format(exp['var']))
+                    print("Error variable {} is not defined before editing\nLine: {}, Character: {}".format(exp['var'],
+                                                                                                            find_token(
+                                                                                                                exp[
+                                                                                                                    'var'])[
+                                                                                                                0][1][
+                                                                                                                'line'],
+                                                                                                            find_token(
+                                                                                                                exp[
+                                                                                                                    'var'])[
+                                                                                                                0][1][
+                                                                                                                'symbol']))
                     input()
                     exit(1)
                 else:
@@ -1065,8 +1084,12 @@ def codegen(AST):
                     if AST[k]['name'] == exp['name']:
                         last = AST[k]
 
-            if(not last):
-                print("Error function {} is not defined\n".format(exp['name']))
+            if (not last):
+                print("Error function {} is not defined\nLine: {}, Character: {}".format(exp['name'],
+                                                                                         find_token(exp['name'])[0][1][
+                                                                                             'line'],
+                                                                                         find_token(exp['name'])[0][1][
+                                                                                             'symbol']))
                 input()
                 exit(1)
 
@@ -1075,7 +1098,15 @@ def codegen(AST):
                     expected_args += 1
 
             if expected_args != arg_count:
-                print("Unexpected args amount at function {}() call\n".format(exp['name']))
+                print("Unexpected args amount at function {}() call\nLine: {}, Character: {}".format(exp['name'],
+                                                                                                     find_token(
+                                                                                                         exp['name'])[
+                                                                                                         0][1][
+                                                                                                         'line'],
+                                                                                                     find_token(
+                                                                                                         exp['name'])[
+                                                                                                         0][1][
+                                                                                                         'symbol']))
                 input()
                 exit(1)
 
@@ -1122,7 +1153,8 @@ def codegen(AST):
                     for k2 in AST[k1]:
                         if k2.startswith('statement'):
                             code_from_ast(AST[k1][k2])
-                    code = code + "    add esp, {}\n    pop ebp\n    ret\n{} ENDP\n\n".format(abs(counter), AST[k1]['name'])
+                    code = code + "    add esp, {}\n    pop ebp\n    ret\n{} ENDP\n\n".format(abs(counter),
+                                                                                              AST[k1]['name'])
                 elif k1.startswith('function'):
                     func_name = AST[k1]['name']
                     for check_if_last in AST:
@@ -1180,8 +1212,12 @@ END start"""
     return code
 
 
+tokens = []
+
+
 # Main program
 def main(argv):
+    global tokens
     file_name = check_args(argv)
     if not file_name.endswith('.txt'):
         print("Wrong file format, expected .txt")
