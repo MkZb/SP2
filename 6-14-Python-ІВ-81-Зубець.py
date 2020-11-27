@@ -34,7 +34,7 @@ def lexer(file_name):
 # Function that splits input string into lexems
 def string_scanner(string: bytes, pos=0):
     def next_item(start_pos):
-        delimiters = [' ', '\n', ':', ';', '(', ')', '-', '+', '~', '=', ',', '>', '<', '%']
+        delimiters = [' ', '\n', ':', ';', '(', ')', '-', '+', '~', '=', ',', '>', '<', '%', '#']
         current_pos = start_pos
         line_counter = 1
         while current_pos < str_len:
@@ -93,7 +93,16 @@ def tokenizer(items: list):
         b'==': 'equal_check',
         b'%': 'remainder'
     }
+    comment = 0
     for i in items:
+        if comment:
+            if i[0] == b'\n':
+                comment = 0
+            else:
+                continue
+        if i[0] == b'#':
+            comment = 1
+            continue
         if i[0] in templates.keys():
             tokens.append((i, templates[i[0]]))
         elif i[0].decode(coding).isnumeric():
@@ -1239,6 +1248,7 @@ and_counter = 0
 while_counter = 0
 cond_exp = 0
 
+
 def codegen(AST):
     global code, var_map, counter, cond, local_counter
     functions = []
@@ -1378,11 +1388,11 @@ def codegen(AST):
                 for i in range(2, exp['comparison_counter'] + 1):
                     code_from_ast(exp['comparison' + str(i)])
                     code = code + '    pop ebx\n    pop eax\n    cmp eax, ebx\n'
-                    if (exp['comparison'+str(i)+'_sign']) == 'equal_check':
+                    if (exp['comparison' + str(i) + '_sign']) == 'equal_check':
                         code = code + '    mov eax, 0\n    sete al\n    push eax\n'
-                    if (exp['comparison'+str(i)+'_sign']) == 'less':
+                    if (exp['comparison' + str(i) + '_sign']) == 'less':
                         code = code + '    mov eax, 0\n    setl al\n    push eax\n'
-                    if (exp['comparison'+str(i)+'_sign']) == 'greater':
+                    if (exp['comparison' + str(i) + '_sign']) == 'greater':
                         code = code + '    mov eax, 0\n    setg al\n    push eax\n'
 
             if exp['type'] == 'Conditional':
