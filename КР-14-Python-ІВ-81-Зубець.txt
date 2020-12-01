@@ -1,0 +1,21 @@
+def main():
+#Main function
+#Calling algorithm function with desired parameters values
+    return myF(1, 2)
+
+def myF(a, b):
+#Algorithm function
+#Finding min value with ternary operator
+    min = a if a < b else b
+    var = min
+    result = 0
+#Looping through all numbers between 1 and min value
+#and adding every divider to result
+    while (var > 0):
+        if (min % var == 0):
+            result = result + var
+        var = var - 1
+    return result
+
+#Calling main function
+main()

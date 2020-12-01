@@ -10,7 +10,7 @@ def check_args(argv):
     try:
         opts, args = getopt.getopt(argv, "i:o", ["input="])
     except getopt.GetoptError:
-        print('6-14-Python-ІВ-81-Зубець.py -i <input_file>')
+        print('КР-14-Python-ІВ-81-Зубець.py -i <input_file>')
         input()
         exit(1)
 
@@ -18,7 +18,7 @@ def check_args(argv):
         if opt in ('-i', '--input'):
             return arg
 
-    return '6-14-Python-ІВ-81-Зубець.txt'
+    return 'КР-14-Python-ІВ-81-Зубець.txt'
 
 
 # LEXER
@@ -1250,8 +1250,13 @@ cond_exp = 0
 
 
 def codegen(AST):
-    global code, var_map, counter, cond, local_counter
+    global code, var_map, counter, cond, local_counter, tokens
     functions = []
+
+    def find_token(search_item):
+        for i in tokens:
+            if i[0][0].decode(coding) == search_item:
+                return i
 
     def code_from_ast(exp: dict):
         global code, var_map, counter, cond, cond2, labels_list, and_counter, while_counter, cond_exp
@@ -1261,7 +1266,11 @@ def codegen(AST):
 
         if exp['kind'] == 'Variable':
             if exp['name'] not in var_map.keys():
-                print('Variable "{}" is not defined!'.format(exp['name']))
+                print('Variable "{}" is not defined!\nLine: {}, Character: {}'.format(exp['name'],
+                                                                                      find_token(exp['name'])[0][1][
+                                                                                          'line'],
+                                                                                      find_token(exp['name'])[0][1][
+                                                                                          'symbol']))
                 input()
                 exit(1)
             code = code + '    mov eax, [ebp {:+d}]\n    push eax\n'.format(var_map[exp['name']])
@@ -1284,7 +1293,11 @@ def codegen(AST):
                     code = code + '    pop eax\n    mov [ebp {:+d}], eax\n'.format(var_map[exp['var']])
             elif exp['type'] == 'R_shift + Assignment':
                 if exp['var'] not in var_map.keys():
-                    print("Error variable {} is not defined before editing\n".format(exp['var']))
+                    print('Variable "{}" is not defined!\nLine: {}, Character: {}'.format(exp['var'],
+                                                                                          find_token(exp['var'])[0][1][
+                                                                                              'line'],
+                                                                                          find_token(exp['var'])[0][1][
+                                                                                              'symbol']))
                     input()
                     exit(1)
                 else:
@@ -1359,7 +1372,11 @@ def codegen(AST):
                         last = AST[k]
 
             if (not last):
-                print("Error function {} is not defined\n".format(exp['name']))
+                print("Error function {} is not defined\nLine: {}, Character: {}".format(exp['name'],
+                                                                                         find_token(exp['name'])[0][1][
+                                                                                             'line'],
+                                                                                         find_token(exp['name'])[0][1][
+                                                                                             'symbol']))
                 input()
                 exit(1)
 
@@ -1368,7 +1385,15 @@ def codegen(AST):
                     expected_args += 1
 
             if expected_args != arg_count:
-                print("Unexpected args amount at function {}() call\n".format(exp['name']))
+                print("Unexpected args amount at function {}() call\nLine: {}, Character: {}".format(exp['name'],
+                                                                                                     find_token(
+                                                                                                         exp['name'])[
+                                                                                                         0][1][
+                                                                                                         'line'],
+                                                                                                     find_token(
+                                                                                                         exp['name'])[
+                                                                                                         0][1][
+                                                                                                         'symbol']))
                 input()
                 exit(1)
 
@@ -1510,9 +1535,11 @@ END start"""
     code = code.replace('{main_func}', main_name)
     return code
 
+tokens = []
 
 # Main program
 def main(argv):
+    global tokens
     file_name = check_args(argv)
     if not file_name.endswith('.txt'):
         print("Wrong file format, expected .txt")
@@ -1537,7 +1564,7 @@ def main(argv):
     print("Generated Code:")
     print(code)
 
-    with open('6-14-Python-ІВ-81-Зубець.asm', 'w') as f:
+    with open('КР-14-Python-ІВ-81-Зубець.asm', 'w') as f:
         f.write(code)
 
     print("\nEnter anything to exit")

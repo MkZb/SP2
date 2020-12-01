@@ -28,9 +28,9 @@ start:
 main PROC
     push ebp
     mov ebp, esp
-    mov eax, 1744
+    mov eax, 2
     push eax
-    mov eax, 9312
+    mov eax, 1
     push eax
     call myF
     add esp, 0
